@@ -1,0 +1,139 @@
+generator client {
+ provider = "prisma-client-js"
+}
+datasource db {
+ provider = "sqlite"
+ url = env("DATABASE_URL")
+}
+model User {
+ id String @id
+ name String
+ email String @unique
+ memberships OrganizationMembership[]
+ sessions Session[]
+ transactions Transaction[]
+ approvals TransactionApproval[]
+}
+model Session {
+ id String @id
+ userId String
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ expiresAt DateTime
+}
+model Organization {
+ id String @id
+ name String
+ city String
+ memberships OrganizationMembership[]
+ commitments FundingCommitment[]
+ approvals TransactionApproval[]
+}
+model OrganizationMembership {
+ id String @id @default(cuid())
+ userId String
+ organizationId String
+ role String
+ user User @relation(fields: [userId], references: [id])
+ organization Organization @relation(fields: [organizationId], references: [id])
+ @@unique([userId, organizationId])
+}
+model Beneficiary {
+ id String @id
+ name String
+ account String
+ transactions Transaction[]
+ restrictions FundingRestriction[]
+}
+model FundingCommitment {
+ id String @id @default(cuid())
+ organizationId String
+ organization Organization @relation(fields: [organizationId], references: [id])
+ amount Int
+ available Int
+ reserved Int @default(0)
+ spent Int @default(0)
+ expiresAt DateTime
+ independentVerification Boolean @default(false)
+ restrictions FundingRestriction[]
+ allocations TransactionAllocation[]
+ createdAt DateTime @default(now())
+}
+model FundingRestriction {
+ id String @id @default(cuid())
+ commitmentId String
+ commitment FundingCommitment @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+ category String
+ beneficiaryId String
+ beneficiary Beneficiary @relation(fields: [beneficiaryId], references: [id])
+ @@unique([commitmentId, category, beneficiaryId])
+}
+model Transaction {
+ id String @id @default(cuid())
+ creatorId String
+ creator User @relation(fields: [creatorId], references: [id])
+ beneficiaryId String
+ beneficiary Beneficiary @relation(fields: [beneficiaryId], references: [id])
+ amount Int
+ category String
+ destination String
+ description String
+ evidence String
+ state String @default("DRAFT")
+ payloadHash String @default("")
+ nonce String @unique
+ expiresAt DateTime
+ createdAt DateTime @default(now())
+ allocations TransactionAllocation[]
+ approvals TransactionApproval[]
+ authorization AuthorizationRecord?
+ settlement SettlementRecord?
+ audit AuditEvent[]
+}
+model TransactionAllocation {
+ id String @id @default(cuid())
+ transactionId String
+ transaction Transaction @relation(fields: [transactionId], references: [id])
+ commitmentId String
+ commitment FundingCommitment @relation(fields: [commitmentId], references: [id])
+ amount Int
+ @@unique([transactionId, commitmentId])
+}
+model TransactionApproval {
+ id String @id @default(cuid())
+ transactionId String
+ transaction Transaction @relation(fields: [transactionId], references: [id])
+ userId String
+ user User @relation(fields: [userId], references: [id])
+ organizationId String
+ organization Organization @relation(fields: [organizationId], references: [id])
+ payloadHash String
+ decision String
+ createdAt DateTime @default(now())
+ @@unique([transactionId, organizationId])
+}
+model AuthorizationRecord {
+ id String @id @default(cuid())
+ transactionId String @unique
+ transaction Transaction @relation(fields: [transactionId], references: [id])
+ provider String
+ payloadHash String
+ expiresAt DateTime
+ createdAt DateTime @default(now())
+}
+model SettlementRecord {
+ id String @id @default(cuid())
+ transactionId String @unique
+ transaction Transaction @relation(fields: [transactionId], references: [id])
+ nonce String @unique
+ amount Int
+ createdAt DateTime @default(now())
+}
+model AuditEvent {
+ id String @id @default(cuid())
+ transactionId String?
+ transaction Transaction? @relation(fields: [transactionId], references: [id])
+ actorId String
+ action String
+ detail String
+ createdAt DateTime @default(now())
+}
